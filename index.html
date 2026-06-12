@@ -36,9 +36,15 @@ h2 {
 .sub { font-size: 11px; color: #888; margin-bottom: 14px; }
 #qr-reader {
   width: 100%;
+  min-height: 70vh;
   border-radius: 10px;
   overflow: hidden;
   background: #111;
+}
+
+#qr-reader video {
+  min-height: 450px !important;
+  object-fit: cover !important;
 }
 /* Ẩn nút bấm thừa của thư viện */
 #qr-reader__dashboard_section_fsr,
@@ -183,17 +189,28 @@ function startScanner() {
   scanner = new Html5Qrcode('qr-reader', { verbose: false });
 
   var cfg = {
-    fps: 15,
-    qrbox: { width: 280, height: 80 },
-    aspectRatio: 1.7,
-    formatsToSupport: [
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.CODE_93,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-    ],
-  };
+  fps: 60,
+
+  qrbox: function(viewfinderWidth, viewfinderHeight) {
+    var size = Math.min(viewfinderWidth * 0.85, 320);
+
+    return {
+      width: size,
+      height: size
+    };
+  },
+
+  aspectRatio: 1,
+
+  formatsToSupport: [
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8
+  ]
+};
 
   // Thử camera sau → camera trước → camera đầu tiên
   scanner.start({ facingMode: 'environment' }, cfg, onScan, function(){})
