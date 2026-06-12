@@ -1,1 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Quét Barcode — Cường Phát</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #0C447C;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
+}
+h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0C447C;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sub { font-size: 11px; color: #888; margin-bottom: 14px; }
+#qr-reader {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #111;
+}
+/* Ẩn nút bấm thừa của thư viện */
+#qr-reader__dashboard_section_fsr,
+#qr-reader__dashboard_section_swaplink { display: none !important; }
+.status {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #555;
+  text-align: center;
+  min-height: 18px;
+  line-height: 1.6;
+}
+.result-box {
+  display: none;
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: #E1F5EE;
+  border: 2px solid #1D9E75;
+  border-radius: 10px;
+  text-align: center;
+}
+.result-box .code {
+  font-size: 20px;
+  font-weight: 900;
+  color: #0F6E56;
+  font-family: monospace;
+  letter-spacing: 1px;
+  word-break: break-all;
+}
+.result-box .hint {
+  font-size: 11px;
+  color: #1D9E75;
+  margin-top: 6px;
+}
+.err-box {
+  display: none;
+  margin-top: 10px;
+  padding: 12px;
+  background: #FCEBEB;
+  border: 1px solid #F7C1C1;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #A32D2D;
+  text-align: center;
+  line-height: 1.7;
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn:active { opacity: .8; }
+.btn-retry { background: #E6F1FB; color: #0C447C; }
+.btn-close { background: #0C447C; color: #fff; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>📷 Quét Barcode Cuộn Thép</h2>
+  <div class="sub">Cường Phát Sài Gòn — Xả Băng Đen</div>
 
+  <div id="qr-reader"></div>
+  <div class="status"  id="status">Đang khởi động...</div>
+  <div class="err-box" id="errBox"></div>
+
+  <div class="result-box" id="resultBox">
+    <div class="code" id="resultCode"></div>
+    <div class="hint">✅ Đã gửi mã về trang chính — tự đóng...</div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-retry" id="btnRetry"
+      onclick="restart()" style="display:none">🔄 Quét lại</button>
+    <button class="btn btn-close" onclick="closeSelf()">✕ Đóng</button>
+  </div>
+</div>
+
+<script>
+var scanner = null;
+var done    = false;
+
+// ── Lấy domain cho phép từ URL tham số ?origin=...  ──────────
+// Ví dụ: scanner.html?origin=https://script.google.com
+var _allowedOrigin = '*';
+(function() {
+  try {
+    var p = new URLSearchParams(window.location.search);
+    if (p.get('origin')) _allowedOrigin = decodeURIComponent(p.get('origin'));
+  } catch(e) {}
+})();
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function showErr(msg) {
+  setStatus('');
+  var el = document.getElementById('errBox');
+  el.innerHTML = msg;
+  el.style.display = 'block';
+  document.getElementById('btnRetry').style.display = 'inline-block';
+}
+
+function start() {
+  done = false;
+  document.getElementById('resultBox').style.display = 'none';
+  document.getElementById('errBox').style.display    = 'none';
+  document.getElementById('btnRetry').style.display  = 'none';
+  document.getElementById('qr-reader').innerHTML     = '';
+  setStatus('Đang xin quyền camera...');
+
+  if (typeof Html5Qrcode === 'undefined') {
+    showErr('❌ Thư viện chưa tải — kiểm tra mạng rồi F5!');
+    return;
+  }
+
+  // Xin quyền trước
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) {
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      setStatus('Đang khởi động camera...');
+      setTimeout(startScanner, 400);
+    })
+    .catch(function(err) {
+      showErr('❌ Không có quyền camera:<br><b>' + (err.message || err) + '</b><br><br>'
+        + '👉 Nhấn icon 🔒 trên thanh địa chỉ → <b>cho phép Camera</b>');
+    });
+}
+
+function startScanner() {
+  try { if (scanner) { scanner.clear(); scanner = null; } } catch(e) {}
+  scanner = new Html5Qrcode('qr-reader', { verbose: false });
+
+  var cfg = {
+    fps: 15,
+    qrbox: { width: 280, height: 80 },
+    aspectRatio: 1.7,
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+    ],
+  };
+
+  // Thử camera sau → camera trước → camera đầu tiên
+  scanner.start({ facingMode: 'environment' }, cfg, onScan, function(){})
+  .catch(function() {
+    return scanner.start({ facingMode: 'user' }, cfg, onScan, function(){});
+  })
+  .catch(function() {
+    return Html5Qrcode.getCameras().then(function(cams) {
+      if (!cams || !cams.length) throw new Error('Không tìm thấy camera!');
+      return scanner.start(cams[0].id, cfg, onScan, function(){});
+    });
+  })
+  .then(function() {
+    setStatus('✅ Hướng camera vào vạch barcode trên cuộn thép');
+  })
+  .catch(function(e) {
+    showErr('❌ Không mở được camera:<br>' + (e.message || e));
+  });
+}
+
+function onScan(code) {
+  if (done) return;
+  done = true;
+  code = (code || '').trim();
+
+  if (scanner) scanner.stop().catch(function(){});
+
+  document.getElementById('resultCode').textContent  = code;
+  document.getElementById('resultBox').style.display = 'block';
+  document.getElementById('btnRetry').style.display  = 'inline-block';
+  setStatus('');
+
+  // Gửi về tab cha (Apps Script)
+  if (window.opener) {
+    window.opener.postMessage(
+      { type: 'BARCODE_SCANNED', code: code },
+      _allowedOrigin
+    );
+  }
+
+  setTimeout(function(){ window.close(); }, 1800);
+}
+
+function restart() {
+  done = false;
+  if (scanner) {
+    scanner.stop().catch(function(){}).finally(function(){
+      try { scanner.clear(); } catch(e) {}
+      scanner = null;
+      setTimeout(start, 300);
+    });
+  } else {
+    start();
+  }
+}
+
+function closeSelf() {
+  if (scanner) scanner.stop().catch(function(){});
+  window.close();
+}
+
+window.onload = function(){ setTimeout(start, 600); };
+</script>
+</body>
+</html>
