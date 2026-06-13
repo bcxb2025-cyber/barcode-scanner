@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Quét Barcode — Cường Phát</title>
+<title>Quét QRcode — Cường Phát</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,21 +34,43 @@ h2 {
   gap: 8px;
 }
 .sub { font-size: 11px; color: #888; margin-bottom: 14px; }
-#qr-reader {
+
+/* Wrapper giữ tỉ lệ vuông, khung quét căn giữa hoàn hảo */
+#qr-wrapper {
   width: 100%;
-  min-height: 70vh;
+  position: relative;
+  background: #111;
   border-radius: 10px;
   overflow: hidden;
-  background: #111;
+  /* Chiều cao tự động theo nội dung video */
+  min-height: 300px;
 }
 
-#qr-reader video {
-  min-height: 450px !important;
-  object-fit: cover !important;
+#qr-reader {
+  width: 100%;
 }
+
+/* Override thư viện: video full width, object-fit cover */
+#qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 300px !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
 /* Ẩn nút bấm thừa của thư viện */
 #qr-reader__dashboard_section_fsr,
-#qr-reader__dashboard_section_swaplink { display: none !important; }
+#qr-reader__dashboard_section_swaplink,
+#qr-reader__dashboard { display: none !important; }
+
+/* Căn giữa khung scan region của thư viện */
+#qr-reader__scan_region {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 .status {
   margin-top: 10px;
   font-size: 12px;
@@ -113,11 +135,14 @@ h2 {
 </head>
 <body>
 <div class="card">
-  <h2>📷 Quét Barcode Cuộn Thép</h2>
-  <div class="sub">Cường Phát Sài Gòn — Xả Băng Đen</div>
+  <h2>📷 Quét QRcode Cuộn Thép</h2>
+  <div class="sub">Cường Phát Sài Gòn - Scanner</div>
 
-  <div id="qr-reader"></div>
-  <div class="status"  id="status">Đang khởi động...</div>
+  <div id="qr-wrapper">
+    <div id="qr-reader"></div>
+  </div>
+
+  <div class="status" id="status">Đang khởi động...</div>
   <div class="err-box" id="errBox"></div>
 
   <div class="result-box" id="resultBox">
@@ -136,8 +161,6 @@ h2 {
 var scanner = null;
 var done    = false;
 
-// ── Lấy domain cho phép từ URL tham số ?origin=...  ──────────
-// Ví dụ: scanner.html?origin=https://script.google.com
 var _allowedOrigin = '*';
 (function() {
   try {
@@ -164,24 +187,16 @@ function start() {
   document.getElementById('errBox').style.display    = 'none';
   document.getElementById('btnRetry').style.display  = 'none';
   document.getElementById('qr-reader').innerHTML     = '';
-  setStatus('Đang xin quyền camera...');
+  setStatus('Đang khởi động camera...');
 
   if (typeof Html5Qrcode === 'undefined') {
     showErr('❌ Thư viện chưa tải — kiểm tra mạng rồi F5!');
     return;
   }
 
-  // Xin quyền trước
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(function(stream) {
-      stream.getTracks().forEach(function(t){ t.stop(); });
-      setStatus('Đang khởi động camera...');
-      setTimeout(startScanner, 400);
-    })
-    .catch(function(err) {
-      showErr('❌ Không có quyền camera:<br><b>' + (err.message || err) + '</b><br><br>'
-        + '👉 Nhấn icon 🔒 trên thanh địa chỉ → <b>cho phép Camera</b>');
-    });
+  /* ── Gọi thẳng scanner, KHÔNG getUserMedia trước
+     → trình duyệt chỉ hỏi quyền 1 lần duy nhất ── */
+  startScanner();
 }
 
 function startScanner() {
@@ -189,30 +204,25 @@ function startScanner() {
   scanner = new Html5Qrcode('qr-reader', { verbose: false });
 
   var cfg = {
-  fps: 60,
+    fps: 30,
+    /* Khung quét: 80% chiều rộng, tối đa 280px
+       → luôn nằm chính giữa camera */
+    qrbox: function(w, h) {
+      var side = Math.round(Math.min(w, h) * 0.80);
+      if (side > 280) side = 280;
+      return { width: side, height: side };
+    },
+    aspectRatio: 1.0,
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8
+    ]
+  };
 
-  qrbox: function(viewfinderWidth, viewfinderHeight) {
-    var size = Math.min(viewfinderWidth * 0.85, 320);
-
-    return {
-      width: size,
-      height: size
-    };
-  },
-
-  aspectRatio: 1,
-
-  formatsToSupport: [
-    Html5QrcodeSupportedFormats.QR_CODE,
-    Html5QrcodeSupportedFormats.CODE_128,
-    Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.CODE_93,
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.EAN_8
-  ]
-};
-
-  // Thử camera sau → camera trước → camera đầu tiên
   scanner.start({ facingMode: 'environment' }, cfg, onScan, function(){})
   .catch(function() {
     return scanner.start({ facingMode: 'user' }, cfg, onScan, function(){});
@@ -227,7 +237,8 @@ function startScanner() {
     setStatus('✅ Hướng camera vào vạch barcode trên cuộn thép');
   })
   .catch(function(e) {
-    showErr('❌ Không mở được camera:<br>' + (e.message || e));
+    showErr('❌ Không mở được camera:<br>' + (e.message || e)
+      + '<br><br>👉 Nhấn icon 🔒 trên thanh địa chỉ → <b>cho phép Camera</b>');
   });
 }
 
@@ -243,7 +254,6 @@ function onScan(code) {
   document.getElementById('btnRetry').style.display  = 'inline-block';
   setStatus('');
 
-  // Gửi về tab cha (Apps Script)
   if (window.opener) {
     window.opener.postMessage(
       { type: 'BARCODE_SCANNED', code: code },
